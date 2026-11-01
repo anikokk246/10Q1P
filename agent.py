@@ -1,4 +1,5 @@
 import os
+from typing import Optional, Union, Dict, Any
 from dotenv import load_dotenv
 from models import AgentInput, AgentOutput, TableStatus
 from db import get_connection, fetch_table_status, validate_ddl, execute_ddl
@@ -8,7 +9,12 @@ load_dotenv()
 
 
 class PostgresDDLAgent:
-    def __init__(self, gemini_api_key: str = None, default_db_url: str = None):
+    """
+    Core AI Agent for PostgreSQL DDL operations.
+    Designed to be invoked programmatically by parent agents or workflows.
+    """
+
+    def __init__(self, gemini_api_key: Optional[str] = None, default_db_url: Optional[str] = None):
         self.gemini_api_key = gemini_api_key or os.environ.get("GEMINI_API_KEY")
         self.default_db_url = default_db_url or os.environ.get("DATABASE_URL")
 
@@ -106,3 +112,35 @@ class PostgresDDLAgent:
                 explanation="Failed during execution.",
                 error=str(e),
             )
+
+
+def execute_ddl_task(
+    schema_name: str,
+    table_name: str,
+    table_instructions: str,
+    database_url: Optional[str] = None,
+    gemini_api_key: Optional[str] = None,
+    as_dict: bool = False,
+) -> Union[AgentOutput, Dict[str, Any]]:
+    """
+    Convenience function for other Python agents to call directly with simple parameters.
+
+    Example:
+        from agent import execute_ddl_task
+
+        result = execute_ddl_task(
+            schema_name="public",
+            table_name="orders",
+            table_instructions="id uuid pk, user_id uuid references users(id), amount numeric(10,2)",
+            as_dict=True
+        )
+    """
+    agent = PostgresDDLAgent(gemini_api_key=gemini_api_key, default_db_url=database_url)
+    input_data = AgentInput(
+        database_url=database_url,
+        schema_name=schema_name,
+        table_name=table_name,
+        table_instructions=table_instructions,
+    )
+    output = agent.run(input_data)
+    return output.model_dump() if as_dict else output
