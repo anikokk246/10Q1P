@@ -1,73 +1,100 @@
-# 10Q1P - PostgreSQL DDL AI Agent (Python)
+# 10Q1P - Multi-Agent Suite via Model Context Protocol (MCP)
 
-An intelligent agent that connects to PostgreSQL (including Neon with SSL), inspects the target database schema, generates verified DDL via Google Gemini, runs a dry-run safety validation, executes the DDL in a transaction, and returns structured before-and-after feedback.
+A modular **Hierarchical Multi-Agent Architecture** connecting humans to an autonomous **Main Orchestrator (Hermes Agent / Host)**, which delegates to specialized **Domain Sub-Agents**, **Worker Agents**, and **Deterministic Tools** via MCP.
 
 ---
 
-## Architecture & Workflow
+## The 5-Layer Architecture
 
 ```
-1. Receive Input (DB URL, Schema, Table, Instructions)
-         │
-         ▼
-2. Pre-flight DB Check (information_schema)
-   ├── Exists? NO  ──► Generate CREATE TABLE
-   └── Exists? YES ──► Introspect Columns ──► Generate ALTER TABLE
-         │
-         ▼
-3. Dry-Run Validation (BEGIN; <SQL>; ROLLBACK;)
-   └── (Auto-correction retry loop if SQL errors occur)
-         │
-         ▼
-4. Committed Transaction Execution (BEGIN; <SQL>; COMMIT;)
-         │
-         ▼
-5. Output Schema Diff & Detailed Feedback Report
+👤 HUMAN (Telegram / Discord / Terminal / Web)
+   │
+   ▼
+👑 MAIN AGENT (Hermes Agent / Orchestrator)
+   │
+   ├── [MCP Protocol via stdio / SSE]
+   │
+   ▼
+📂 DOMAIN SUB-AGENTS (subagents/database, subagents/ingestion, etc.)
+   │
+   ▼
+👷 SPECIALIST WORKER AGENTS (workers/ddl_worker.py, query_worker.py)
+   │
+   ▼
+🛠️ CONCRETE TOOLS (schema_tools.py, execution_tools.py)
 ```
 
 ---
 
-## Setup
+## Directory Organization
 
-1. **Create and activate the virtual environment:**
-   ```powershell
-   .\.venv\Scripts\activate
-   ```
-
-2. **Install dependencies:**
-   ```powershell
-   pip install -r requirements.txt
-   ```
-
-3. **Configure environment:**
-   Create a `.env` file based on `.env.example`:
-   ```ini
-   DATABASE_URL=postgresql://neondb_owner:npg_xxxx@ep-cool-sample.us-east-2.aws.neon.tech/neondb?sslmode=require
-   GEMINI_API_KEY=your_gemini_api_key_here
-   ```
+```
+10Q1P/
+├── subagents/
+│   ├── database/                     # 🗄️ Database Domain Sub-Agent
+│   │   ├── subagent.py               # Coordinates DB workers & tools
+│   │   │
+│   │   ├── workers/                  # 👷 Specialist Worker Agents
+│   │   │   ├── ddl_worker.py         # Gemini DDL Agent (dry-run & self-healing)
+│   │   │   └── __init__.py
+│   │   │
+│   │   ├── tools/                    # 🛠️ Concrete DB Primitives
+│   │   │   ├── db_connection.py      # PostgreSQL / Neon SSL connection
+│   │   │   ├── schema_tools.py       # inspect_table, list_tables
+│   │   │   ├── execution_tools.py    # dry_run, execute_committed, read_query
+│   │   │   └── __init__.py
+│   │   │
+│   │   ├── models/                   # Pydantic Schemas
+│   │   │   ├── schemas.py            # DDLTaskInput, DDLTaskOutput, TableStatus
+│   │   │   └── __init__.py
+│   │   │
+│   │   └── __init__.py               # MCP Registration Hook
+│   │
+│   └── ingestion/                    # 📁 (Future) File Ingestion Sub-Agent
+│
+├── server.py                         # 🔌 Master MCP Server (Mounts sub-agents)
+├── main.py                           # 💻 CLI Interface for direct manual testing
+├── example_parent_agent.py           # 🧪 Simulation of Main Agent calling Database Sub-Agent
+├── test_agent.py                     # ✅ Unit Test Suite
+├── requirements.txt
+└── .env
+```
 
 ---
 
-## Usage
+## Registered MCP Tools
 
-### Interactive Mode:
+When `server.py` runs, it exposes:
+
+1. **`postgres_manage_table_ddl`** *(Agentic Worker Tool)*:
+   - Full autonomous DDL workflow: pre-flight schema inspection $\rightarrow$ Gemini SQL generation $\rightarrow$ dry-run validation $\rightarrow$ committed execution.
+2. **`postgres_list_tables`** *(Deterministic Tool)*:
+   - Direct query of all tables in a schema.
+3. **`postgres_inspect_table`** *(Deterministic Tool)*:
+   - Returns column definitions, nullability, defaults, primary keys, and indexes.
+4. **`postgres_read_query`** *(Deterministic Tool)*:
+   - Safe read-only `SELECT` query runner.
+
+---
+
+## How to Run
+
+### 1. Run as an MCP Server (For Hermes / Claude / Main Agent):
+```powershell
+.\.venv\Scripts\python.exe server.py
+```
+
+### 2. Run Manually via CLI:
 ```powershell
 .\.venv\Scripts\python.exe main.py
 ```
-You will be prompted for:
-- Schema name (e.g. `public`)
-- Table name (e.g. `users`)
-- Table instructions (e.g. `id uuid primary key, email text unique not null, status text default 'active'`)
 
-### Command-Line Arguments Mode:
+### 3. Run Simulated Main Agent Call:
 ```powershell
-.\.venv\Scripts\python.exe main.py \
-  --schema public \
-  --table orders \
-  --instructions "id uuid primary key, user_id uuid references users(id), amount numeric(10,2) not null, created_at timestamptz default now(), index on user_id"
+.\.venv\Scripts\python.exe example_parent_agent.py
 ```
 
-### Run Tests:
+### 4. Run Unit Tests:
 ```powershell
 .\.venv\Scripts\python.exe test_agent.py
 ```
