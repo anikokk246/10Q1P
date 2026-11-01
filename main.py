@@ -1,11 +1,10 @@
 import os
+import sys
 import argparse
 from dotenv import load_dotenv
 from rich.console import Console
-from rich.panel import Panel
-from rich.syntax import Syntax
-from rich.table import Table
 
+from chat import start_chat
 from subagents.database import DatabaseSubAgent
 from subagents.database.models import DDLTaskOutput
 
@@ -13,8 +12,20 @@ load_dotenv()
 console = Console()
 
 
-def display_output(output: DDLTaskOutput):
-    """Renders formatted feedback for the user in the terminal."""
+def run_one_off_cli(args):
+    """Runs a single DDL operation without entering chat mode."""
+    from rich.panel import Panel
+    from rich.syntax import Syntax
+    from rich.table import Table
+
+    db_subagent = DatabaseSubAgent(model_name=args.model)
+    output = db_subagent.manage_table_ddl(
+        schema_name=args.schema or "public",
+        table_name=args.table,
+        table_instructions=args.instructions,
+        database_url=args.url,
+    )
+
     if output.success:
         action_color = "bold green" if output.action == "CREATED_TABLE" else "bold cyan"
         console.print(
@@ -26,98 +37,39 @@ def display_output(output: DDLTaskOutput):
                 border_style="green",
             )
         )
-
-        # Show Executed SQL
-        console.print("\n[bold yellow]Executed SQL Script:[/bold yellow]")
         syntax = Syntax(output.generated_sql, "sql", theme="monokai", line_numbers=True)
         console.print(syntax)
-
-        # Show Updated Schema Table
-        table = Table(
-            title=f"Updated Columns for {output.schema_name}.{output.table_name}",
-            border_style="blue",
-        )
-        table.add_column("Column Name", style="cyan", no_wrap=True)
-        table.add_column("Data Type", style="magenta")
-        table.add_column("Nullable", style="green")
-        table.add_column("Default Value", style="white")
-
-        for col in output.after_columns:
-            table.add_row(
-                col.name,
-                col.data_type,
-                "YES" if col.is_nullable else "NO",
-                col.default_value or "None",
-            )
-
-        console.print("\n", table)
-
     else:
         console.print(
             Panel(
                 f"[bold red]✘ FAILED[/bold red]\n"
                 f"Target: [bold]{output.schema_name}.{output.table_name}[/bold]\n"
-                f"Error: {output.error}\n\n"
-                f"[italic]{output.explanation}[/italic]",
+                f"Error: {output.error}",
                 title="[bold red]Database Worker Agent Failure[/bold red]",
                 border_style="red",
             )
         )
-        if output.generated_sql:
-            console.print("\n[bold yellow]Attempted SQL:[/bold yellow]")
-            syntax = Syntax(output.generated_sql, "sql", theme="monokai", line_numbers=True)
-            console.print(syntax)
 
 
 def main():
     default_model = os.environ.get("GEMINI_MODEL", "gemini-3.8-flash")
 
     parser = argparse.ArgumentParser(
-        description="Database Sub-Agent CLI for automated PostgreSQL DDL operations."
+        description="HUMAN > MAIN AGENT > SUB-AGENTS > WORKER AGENTS > TOOLS"
     )
     parser.add_argument("--url", help="PostgreSQL connection string (defaults to DATABASE_URL in .env)")
     parser.add_argument("--schema", help="Target PostgreSQL schema (e.g. public)")
-    parser.add_argument("--table", help="Target table name")
+    parser.add_argument("--table", help="Target table name (if running in one-off mode)")
     parser.add_argument("--instructions", help="Text instructions for columns and constraints")
     parser.add_argument("--model", default=default_model, help=f"Gemini model name (default: {default_model})")
 
     args = parser.parse_args()
 
-    console.print(
-        Panel.fit(
-            f"[bold cyan]Database Domain Sub-Agent[/bold cyan]\n"
-            f"Model: [bold yellow]{args.model}[/bold yellow]\n"
-            f"Coordinates DDLWorkerAgent -> Gemini Synthesis -> Dry-Run Validation -> Transactional Commit",
-            border_style="cyan",
-        )
-    )
-
-    # Interactive prompt if arguments not provided
-    schema_name = args.schema
-    while not schema_name:
-        schema_name = console.input("[bold yellow]Enter Schema Name (e.g. public): [/bold yellow]").strip()
-
-    table_name = args.table
-    while not table_name:
-        table_name = console.input("[bold yellow]Enter Table Name: [/bold yellow]").strip()
-
-    instructions = args.instructions
-    while not instructions:
-        instructions = console.input(
-            "[bold yellow]Enter Table Instructions (columns, types, constraints): [/bold yellow]"
-        ).strip()
-
-    console.print(f"\n[cyan]Inspecting {schema_name}.{table_name} in database and consulting LLM ({args.model})...[/cyan]\n")
-
-    db_subagent = DatabaseSubAgent(model_name=args.model)
-    output = db_subagent.manage_table_ddl(
-        schema_name=schema_name,
-        table_name=table_name,
-        table_instructions=instructions,
-        database_url=args.url,
-    )
-
-    display_output(output)
+    # If --table was passed, run one-off mode; otherwise default to interactive CHAT mode!
+    if args.table:
+        run_one_off_cli(args)
+    else:
+        start_chat()
 
 
 if __name__ == "__main__":
