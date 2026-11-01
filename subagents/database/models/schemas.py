@@ -18,16 +18,15 @@ class TableStatus(BaseModel):
     indexes: List[str] = Field(default_factory=list)
 
 
-class AgentInput(BaseModel):
-    database_type: str = "PostgreSQL"
+class DDLTaskInput(BaseModel):
     database_url: Optional[str] = None
-    schema_name: str
-    object_type: str = "TABLE"
-    table_name: str
-    table_instructions: str
+    schema_name: str = Field(description="PostgreSQL schema name (e.g. public)")
+    object_type: str = Field(default="TABLE", description="DDL object type")
+    table_name: str = Field(description="Target table name")
+    table_instructions: str = Field(description="Instructions for columns, data types, constraints, indexes")
 
 
-class AgentOutput(BaseModel):
+class DDLTaskOutput(BaseModel):
     success: bool
     action: str  # "CREATED_TABLE" | "ALTERED_TABLE" | "NO_OP"
     schema_name: str

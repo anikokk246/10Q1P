@@ -1,21 +1,22 @@
 """
 example_parent_agent.py
 
-Demonstrates how another Python agent or script calls the PostgreSQL DDL AI Agent.
+Demonstrates how a Main Agent or Orchestrator script imports and invokes
+the Database Sub-Agent and its DDL Worker Agent.
 """
 
-from agent import execute_ddl_task, PostgresDDLAgent
-from models import AgentInput
+from subagents.database import DatabaseSubAgent
 
 
 def run_parent_agent_workflow():
-    print("--- Parent Agent Workflow Started ---")
+    print("--- Main Orchestrator Agent Workflow Started ---")
 
-    # Example 1: Direct function call (simplest integration)
-    # The parent agent wants to ensure an 'audit_logs' table exists
-    print("\n[Parent Agent] Requesting creation/update of 'audit_logs' table...")
+    # The Main Agent initializes the Database Sub-Agent
+    db_agent = DatabaseSubAgent()
 
-    result = execute_ddl_task(
+    print("\n[Main Agent] Requesting Database Sub-Agent to create/alter 'audit_logs' table...")
+
+    result = db_agent.manage_table_ddl(
         schema_name="public",
         table_name="audit_logs",
         table_instructions="""
@@ -27,19 +28,19 @@ def run_parent_agent_workflow():
         index on actor_id,
         index on created_at
         """,
-        as_dict=True,  # Set to True to get a standard Python dictionary
+        as_dict=True,
     )
 
     if result["success"]:
-        print(f"[Parent Agent] Operation Success!")
+        print(f"[Main Agent] Sub-Agent completed task successfully!")
         print(f"Action Taken: {result['action']}")
         print(f"Executed SQL:\n{result['generated_sql']}")
         print(f"Explanation: {result['explanation']}")
     else:
-        print(f"[Parent Agent] Operation Failed!")
+        print(f"[Main Agent] Sub-Agent reported failure!")
         print(f"Error: {result['error']}")
 
-    print("\n--- Parent Agent Workflow Finished ---")
+    print("\n--- Main Orchestrator Agent Workflow Finished ---")
 
 
 if __name__ == "__main__":

@@ -1,11 +1,6 @@
 import psycopg
-from typing import Tuple, Optional
-from models import TableStatus, ColumnInfo
-
-
-def get_connection(db_url: str) -> psycopg.Connection:
-    """Connects to PostgreSQL (including Neon with SSL) using psycopg."""
-    return psycopg.connect(db_url, autocommit=False)
+from typing import List, Dict, Any
+from subagents.database.models.schemas import TableStatus, ColumnInfo
 
 
 def fetch_table_status(conn: psycopg.Connection, schema_name: str, table_name: str) -> TableStatus:
@@ -96,20 +91,16 @@ def fetch_table_status(conn: psycopg.Connection, schema_name: str, table_name: s
         )
 
 
-def validate_ddl(conn: psycopg.Connection, sql: str) -> Tuple[bool, Optional[str]]:
-    """Dry-runs the DDL inside an ephemeral transaction (BEGIN ... ROLLBACK) to catch errors."""
-    try:
-        with conn.cursor() as cur:
-            cur.execute(sql)
-        conn.rollback()
-        return True, None
-    except Exception as e:
-        conn.rollback()
-        return False, str(e)
-
-
-def execute_ddl(conn: psycopg.Connection, sql: str) -> None:
-    """Executes the DDL inside a committed transaction."""
+def list_tables_in_schema(conn: psycopg.Connection, schema_name: str = "public") -> List[str]:
+    """Returns a list of all table names in a specified schema."""
     with conn.cursor() as cur:
-        cur.execute(sql)
-    conn.commit()
+        cur.execute(
+            """
+            SELECT table_name
+            FROM information_schema.tables
+            WHERE table_schema = %s AND table_type = 'BASE TABLE'
+            ORDER BY table_name;
+            """,
+            (schema_name,),
+        )
+        return [row[0] for row in cur.fetchall()]

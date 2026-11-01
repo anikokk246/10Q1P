@@ -1,4 +1,3 @@
-import sys
 import argparse
 from dotenv import load_dotenv
 from rich.console import Console
@@ -6,14 +5,14 @@ from rich.panel import Panel
 from rich.syntax import Syntax
 from rich.table import Table
 
-from models import AgentInput, AgentOutput
-from agent import PostgresDDLAgent
+from subagents.database import DatabaseSubAgent
+from subagents.database.models import DDLTaskOutput
 
 load_dotenv()
 console = Console()
 
 
-def display_output(output: AgentOutput):
+def display_output(output: DDLTaskOutput):
     """Renders formatted feedback for the user in the terminal."""
     if output.success:
         action_color = "bold green" if output.action == "CREATED_TABLE" else "bold cyan"
@@ -22,7 +21,7 @@ def display_output(output: AgentOutput):
                 f"[{action_color}]✔ SUCCESS: {output.action}[/{action_color}]\n"
                 f"Target: [bold]{output.schema_name}.{output.table_name}[/bold]\n\n"
                 f"[italic]{output.explanation}[/italic]",
-                title="[bold green]PostgreSQL DDL Agent Result[/bold green]",
+                title="[bold green]Database Worker Agent Result[/bold green]",
                 border_style="green",
             )
         )
@@ -59,7 +58,7 @@ def display_output(output: AgentOutput):
                 f"Target: [bold]{output.schema_name}.{output.table_name}[/bold]\n"
                 f"Error: {output.error}\n\n"
                 f"[italic]{output.explanation}[/italic]",
-                title="[bold red]PostgreSQL DDL Agent Failure[/bold red]",
+                title="[bold red]Database Worker Agent Failure[/bold red]",
                 border_style="red",
             )
         )
@@ -71,7 +70,7 @@ def display_output(output: AgentOutput):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="AI Agent that connects to PostgreSQL and performs DDL operations safely."
+        description="Database Sub-Agent CLI for automated PostgreSQL DDL operations."
     )
     parser.add_argument("--url", help="PostgreSQL connection string (defaults to DATABASE_URL in .env)")
     parser.add_argument("--schema", help="Target PostgreSQL schema (e.g. public)")
@@ -82,13 +81,13 @@ def main():
 
     console.print(
         Panel.fit(
-            "[bold cyan]PostgreSQL DDL AI Agent[/bold cyan]\n"
-            "Inspects existing schema -> LLM Generates DDL -> Dry-Run Validation -> Transactional Execution",
+            "[bold cyan]Database Domain Sub-Agent[/bold cyan]\n"
+            "Coordinates DDLWorkerAgent -> Gemini Synthesis -> Dry-Run Validation -> Transactional Commit",
             border_style="cyan",
         )
     )
 
-    # Interactive input if flags not provided
+    # Interactive prompt if arguments not provided
     schema_name = args.schema
     while not schema_name:
         schema_name = console.input("[bold yellow]Enter Schema Name (e.g. public): [/bold yellow]").strip()
@@ -103,17 +102,15 @@ def main():
             "[bold yellow]Enter Table Instructions (columns, types, constraints): [/bold yellow]"
         ).strip()
 
-    agent_input = AgentInput(
-        database_url=args.url,
+    console.print(f"\n[cyan]Inspecting {schema_name}.{table_name} in database and consulting LLM...[/cyan]\n")
+
+    db_subagent = DatabaseSubAgent()
+    output = db_subagent.manage_table_ddl(
         schema_name=schema_name,
         table_name=table_name,
         table_instructions=instructions,
+        database_url=args.url,
     )
-
-    console.print(f"\n[cyan]Inspecting {schema_name}.{table_name} in database and consulting LLM...[/cyan]\n")
-
-    agent = PostgresDDLAgent()
-    output = agent.run(agent_input)
 
     display_output(output)
 
