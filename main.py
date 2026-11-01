@@ -1,3 +1,4 @@
+import os
 import argparse
 from dotenv import load_dotenv
 from rich.console import Console
@@ -69,6 +70,8 @@ def display_output(output: DDLTaskOutput):
 
 
 def main():
+    default_model = os.environ.get("GEMINI_MODEL", "gemini-3.8-flash")
+
     parser = argparse.ArgumentParser(
         description="Database Sub-Agent CLI for automated PostgreSQL DDL operations."
     )
@@ -76,13 +79,15 @@ def main():
     parser.add_argument("--schema", help="Target PostgreSQL schema (e.g. public)")
     parser.add_argument("--table", help="Target table name")
     parser.add_argument("--instructions", help="Text instructions for columns and constraints")
+    parser.add_argument("--model", default=default_model, help=f"Gemini model name (default: {default_model})")
 
     args = parser.parse_args()
 
     console.print(
         Panel.fit(
-            "[bold cyan]Database Domain Sub-Agent[/bold cyan]\n"
-            "Coordinates DDLWorkerAgent -> Gemini Synthesis -> Dry-Run Validation -> Transactional Commit",
+            f"[bold cyan]Database Domain Sub-Agent[/bold cyan]\n"
+            f"Model: [bold yellow]{args.model}[/bold yellow]\n"
+            f"Coordinates DDLWorkerAgent -> Gemini Synthesis -> Dry-Run Validation -> Transactional Commit",
             border_style="cyan",
         )
     )
@@ -102,9 +107,9 @@ def main():
             "[bold yellow]Enter Table Instructions (columns, types, constraints): [/bold yellow]"
         ).strip()
 
-    console.print(f"\n[cyan]Inspecting {schema_name}.{table_name} in database and consulting LLM...[/cyan]\n")
+    console.print(f"\n[cyan]Inspecting {schema_name}.{table_name} in database and consulting LLM ({args.model})...[/cyan]\n")
 
-    db_subagent = DatabaseSubAgent()
+    db_subagent = DatabaseSubAgent(model_name=args.model)
     output = db_subagent.manage_table_ddl(
         schema_name=schema_name,
         table_name=table_name,

@@ -29,8 +29,17 @@ class DDLWorkerAgent:
     5. Returns before & after schema status
     """
 
-    def __init__(self, gemini_api_key: Optional[str] = None):
+    def __init__(
+        self,
+        gemini_api_key: Optional[str] = None,
+        model_name: Optional[str] = None,
+    ):
         self.api_key = gemini_api_key or os.environ.get("GEMINI_API_KEY")
+        self.model_name = (
+            model_name
+            or os.environ.get("GEMINI_MODEL")
+            or "gemini-3.8-flash"
+        )
 
     def _get_llm_client(self) -> genai.Client:
         if not self.api_key:
@@ -107,14 +116,13 @@ class DDLWorkerAgent:
         task_input: DDLTaskInput,
         status: TableStatus,
         previous_error: Optional[str] = None,
-        model_name: str = "gemini-2.5-flash",
     ) -> Tuple[str, str]:
         client = self._get_llm_client()
         prompt = self._build_prompt(task_input, status, previous_error)
 
         try:
             response = client.models.generate_content(
-                model=model_name,
+                model=self.model_name,
                 contents=prompt,
                 config={
                     "response_mime_type": "application/json",
@@ -126,7 +134,7 @@ class DDLWorkerAgent:
         except Exception:
             # Fallback text parsing
             response = client.models.generate_content(
-                model=model_name,
+                model=self.model_name,
                 contents=prompt + "\nReturn strictly JSON with keys 'sql' and 'explanation'.",
             )
             text = response.text.strip()

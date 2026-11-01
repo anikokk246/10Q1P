@@ -15,8 +15,12 @@ class DatabaseSubAgent:
     Manages all database operations and coordinates specialized workers & tools.
     """
 
-    def __init__(self, gemini_api_key: Optional[str] = None):
-        self.ddl_worker = DDLWorkerAgent(gemini_api_key=gemini_api_key)
+    def __init__(
+        self,
+        gemini_api_key: Optional[str] = None,
+        model_name: Optional[str] = None,
+    ):
+        self.ddl_worker = DDLWorkerAgent(gemini_api_key=gemini_api_key, model_name=model_name)
 
     def manage_table_ddl(
         self,
